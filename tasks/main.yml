@@ -1,0 +1,65 @@
+---
+- name: install required packages
+  apt:
+    name: "{{ required_packages }}"
+    update_cache: true
+    cache_valid_time: 86400
+
+- name: add pgp key
+  apt_key:
+    url: "{{ repo_key }}"
+    state: present
+
+- name: Add an apt key by id from a keyserver
+  apt_key:
+    keyserver: keyserver.ubuntu.com
+    id: 9ECBEC467F0CEB10
+  when: version == "3.0"
+
+- name: add repo
+  apt_repository:
+    repo: "{{ repo }}"
+    state: present
+    filename: mongodb
+
+- name: mongodb configuration
+  copy:
+    content: "{{ default_config | combine(config, recursive=true) | to_nice_yaml(indent=2) }}"
+    dest: "{{ config_path }}"
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart mongodb service
+
+- name: install mongodb packages
+  apt:
+    name: "{{ mongodb_packages }}"
+    update_cache: true
+    cache_valid_time: 86400
+
+- name: create systemd override directory
+  file:
+    path: /etc/systemd/system/mongod.service.d
+    state: directory
+  when: version != "3.0"
+
+- name: add systemd unit for v3.0
+  copy:
+    src: mongod.service
+    dest: /etc/systemd/system/mongod.service
+  when: version == "3.0"
+
+- name: add systemd override
+  copy:
+    src: override.conf
+    dest: /etc/systemd/system/mongod.service.d/override.conf
+  when: version != "3.0"
+  notify: reload mongodb unit
+
+- meta: flush_handlers
+
+- name: mongodb service enable
+  systemd:
+    name: mongod
+    enabled: yes
+    state: started

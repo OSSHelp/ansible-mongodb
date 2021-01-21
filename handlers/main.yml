@@ -1,0 +1,6 @@
+---
+- name: reload mongodb unit
+  systemd: daemon_reload=yes
+
+- name: restart mongodb service
+  systemd: name=mongod state=restarted
